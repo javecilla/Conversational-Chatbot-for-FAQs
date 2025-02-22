@@ -1,25 +1,11 @@
-/*
-  Using GROK (X AI)
-*/
-
-export interface GrokMessage {
-  role: 'system' | 'user' | 'assistant';
+// /src/types/ai.ts
+export interface GeminiMessage {
+  role: 'user' | 'model';
   content: string;
+  timestamp: number;
+  options?: string[];
+  isStarter?: boolean; // Optional flag for starter message
 }
-
-export interface GrokChoice {
-  message: {
-    content: string;
-  };
-}
-
-export interface GrokResponse {
-  choices: GrokChoice[];
-}
-
-/*
-  Using Gemini (Google AI)
-*/
 
 export interface GeminiContent {
   parts: readonly { text: string }[];
