@@ -9,9 +9,8 @@ A conversational chat application built with Vue 3, Vite, and TypeScript, integr
 - [Project Setup](#project-setup)
 - [Project Structure](#project-structure)
 - [Development Guidelines](#development-guidelines)
-- [Features](#features)
 - [Next Steps](#next-steps)
-- [Usage](#usage)
+- [Demo](#demo)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -69,8 +68,12 @@ src/
 - **Types**: Use interfaces over types, avoid enum
 - **Styling**: Leverage Tailwind CSS with a mobile-first approach
 - **Components**: Follow SFC pattern with `<script setup>`
-
-## Todos
+- Follow Vue 3 Composition API best practices
+- Use TypeScript for type safety
+- Follow the project's code style guide
+- Implement responsive design using Tailwind CSS
+- Optimize for performance and accessibility
+## Next Steps
 
 #### **1️⃣ User-Friendly Interface**  
 🔲 **Collapsible Chat Box** - like the messenger interface
@@ -102,3 +105,21 @@ src/
 ✅ **Screen Reader Support** – Ensure content is readable by screen readers.  
 🔲 **Keyboard Navigation** – Allow users to navigate the chat interface using the keyboard
 ...
+
+## Demo
+
+You can try the live demo [https://chatbot-faqs.vercel.app/](https://chatbot-faqs.vercel.app/)
+
+## Contributing
+
+Contributions are welcome! Please follow the [Contributing Guidelines](https://github.com/Javecilla/chatbot-faqs/blob/main/CONTRIBUTING.md).
+
+## Contact
+
+- Portfolio: [jerome-avecilla.vercel.app](https://jerome-avecilla.vercel.app/)
+- Email: jeromesavc@gmail.com
+- GitHub: [@javecilla](https://github.com/javecilla)
+
+## License
+
+This project is licensed under the MIT License.
