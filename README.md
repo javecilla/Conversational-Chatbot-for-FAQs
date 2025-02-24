@@ -1,16 +1,25 @@
-# My Vue App
+# Conversational Chatbot for FAQs
 
-A modern web application built with Vue 3, Vite, and TypeScript, featuring Tailwind CSS, Headless UI, Element Plus, Pinia, and VueUse. This project follows a modular, maintainable structure with performance optimization in mind.
+A conversational chat application built with Vue 3, Vite, and TypeScript, integrating generative AI to provide real-time, interactive responses, similar to popular AI chat platforms. This project leverages modern web technologies for a sleek, responsive user experience with a focus on maintainability and performance.
+
+## Table of Contents
+
+- [Tech Stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Project Setup](#project-setup)
+- [Project Structure](#project-structure)
+- [Development Guidelines](#development-guidelines)
+- [Features](#features)
+- [Next Steps](#next-steps)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Tech Stack
 
-- **Frontend Framework**: Vue 3 (Composition API)
-- **Build Tool**: Vite
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS (Mobile-first)
-- **UI Libraries**: Headless UI (Vue), Element Plus
-- **State Management**: Pinia
-- **Utilities**: VueUse
+- Vue.js 3
+- TypeScript
+- Tailwind CSS
 
 ## Prerequisites
 
@@ -61,21 +70,35 @@ src/
 - **Styling**: Leverage Tailwind CSS with a mobile-first approach
 - **Components**: Follow SFC pattern with `<script setup>`
 
-## Features
+## Todos
 
-- Vue 3 Composition API with TypeScript
-- Vite for fast development and building
-- Tailwind CSS for utility-first styling
-- Headless UI and Element Plus for UI components
-- Pinia for state management
-- VueUse for composable utilities
-- Mobile-first responsive design
-- Performance optimizations
-- Type-safe development
+#### **1️⃣ User-Friendly Interface**  
+🔲 **Collapsible Chat Box** - like the messenger interface
+🔲 **Option to End Chat & Start a New Conversation** 
+🔲 **Customizable Chat Theme** – Allow users to toggle between light/dark mode or select a theme.  
+✅ **Typing Indicator** – Show a "bot is typing..." animation for a more natural feel.  
+✅ **Quick Reply Buttons** – Provide suggested questions that users can tap instead of typing.  
+✅ **Starter Categorizationonversation** - Show a "starter conversation for a more natural like "Hello i am Javecilla ChatBot, How can i assist you?" and then show suggestions questions like "Who are you?", "What’s your background? and  "What services do you offer?",
 
-## Next Steps
+#### **2️⃣ Improved Chat Experience**  
+✅ **Chunked AI Responses for Real-Time Feel** - Show AI responses in chunks for a more natural flow.
+✅ **Autoscroll to Latest Message** – Ensure new messages are always visible.  
+🔲 **Message Timestamp** – Show timestamps for each user and bot message.  
+🔲 **Emoji & Markdown Support** – Improve readability and engagement with emojis or formatting (bold, italics, etc.).  
 
-- [ ] Add Vue Router for navigation
-- [ ] Implement a Pinia store for state management
-- [ ] Enable dark mode with Tailwind CSS
-- [ ] Optimize performance with lazy loading and `<Suspense>`
+#### **3️⃣ Persistent & Session-Based Features**  
+✅ **Store Chat (state-pinia) History for Current Session** 
+🔲 **Load Previous Chats on Page Reload** – Restore chat history when the user revisits.  
+🔲 **Local Storage or Database Option** – Store chat history beyond the current session for returning users.  
+
+#### **4️⃣ Smart Features & Enhancements**  
+✅ **Smart Search for FAQs** – Let users type keywords, and the chatbot suggests related FAQs.  
+✅ **Fallback Handling** – If the bot doesn't know an answer, it can guide the user to contact you or check your website.  
+✅ **FAQ Categorization** – Organize FAQs into categories (e.g., Services, Pricing, Contact).  
+🔲 **Voice-to-Text Support** – Allow users to speak their question instead of typing.  
+🔲 **Multilingual Support** – allow switching languages.  
+
+#### **5️⃣ Accessibility**  
+✅ **Screen Reader Support** – Ensure content is readable by screen readers.  
+🔲 **Keyboard Navigation** – Allow users to navigate the chat interface using the keyboard
+...
