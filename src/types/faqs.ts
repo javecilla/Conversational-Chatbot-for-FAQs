@@ -3,4 +3,5 @@ export interface FAQ {
     readonly question: string;
     readonly answer: string;
     readonly keywords: string[];
+    readonly patternSuggestions?: number[];
 }

@@ -24,12 +24,13 @@ export function useAI() {
 
       const data = await response.json() as GeminiResponse;
       let responseText = data.candidates[0]?.content.parts[0].text ?? 'No response';
+      console.log('Raw Gemini Response:', responseText); // Debug raw response
       responseText = responseText
-        .replace(/(Hey|Hi|Hello|Yo)!?\s*/i, '') // Remove informal greetings
-        .replace(/Hey there!?\s*/i, '') // Remove specific "Hey there!"
-        .replace(/there!?\s*/i, '') // Remove "there!" specifically
+        .replace(/^((Hey|Hello)( there)?!?\s*)/i, '') // Remove informal greetings only at the start (case-insensitive)
         .replace(/ID:\s*\d+\s*A:\s*/i, '') // Keep existing ID pattern
-        .trim();
+        .replace(/\s+/g, ' ') // Normalize whitespace to single spaces
+        .trim(); // Remove leading/trailing whitespace
+      console.log('Cleaned Gemini Response:', responseText); // Debug cleaned response
       return responseText;
     } catch (error) {
       console.error('Gemini AI error:', error);

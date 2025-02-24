@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'; // Added onMounted for initialization
+import { ref, nextTick, onMounted } from 'vue'; 
 import { useChatStore } from '@/stores/chat';
 import { useChatBot } from '@/utils/chatBot';
-import type { GeminiMessage } from '@/types/ai'; // Import GeminiMessage type
+import type { GeminiMessage } from '@/types/ai';
 
 const userInput = ref('');
 const isLoading = ref(false);
-const typingIndicator = ref(false); // Keep typing indicator
+const typingIndicator = ref(false);
 
 const chatStore = useChatStore();
-const { streamResponse, generateQuickReplies } = useChatBot(chatStore); // Pass chatStore to useChatBot
+const { streamResponse, generateQuickReplies } = useChatBot(chatStore); 
 
 // Method to scroll chat container to the bottom
 const scrollToBottom = () => {
@@ -27,7 +27,7 @@ onMounted(async () => {
   // Start with a bot greeting
   const starterMessage = 'Hello, I am Javecilla ChatBot. How can I assist you?';
   const botMessageId = chatStore.addMessage('model', '', undefined, true); // Pass undefined for options, true for isStarter
-  typingIndicator.value = true; // Show typing indicator
+  typingIndicator.value = true; 
   await nextTick(() => scrollToBottom()); // Scroll after adding bot message
 
   try {
@@ -45,17 +45,17 @@ onMounted(async () => {
     }
 
     // Hardcode starter quick replies for the initial conversation
-    const starterQuickReplies = ['Who are you?', 'What’s your background?', 'What services do you offer?'];
-    console.log('Starter quick replies hardcoded:', starterQuickReplies); // Debug starter quick replies
+    const starterQuickReplies = ['Who are you?', 'Do you accept project commissions?', 'What services do you offer?'];
+    console.log('Starter quick replies hardcoded:', starterQuickReplies);
     chatStore.updateMessage(botMessageId, fullResponse.trim(), starterQuickReplies); // Update with hardcoded options
 
-    await nextTick(() => scrollToBottom()); // Scroll to show suggestions
+    await nextTick(() => scrollToBottom()); // Scroll to show starter message
   } catch (error) {
     console.error('Starter conversation error:', error);
     chatStore.updateMessage(botMessageId, 'Oops, something went wrong with the starter message!');
-    await nextTick(() => scrollToBottom()); // Scroll after error update
+    await nextTick(() => scrollToBottom()); // Scroll after error
   } finally {
-    typingIndicator.value = false; // Hide typing indicator
+    typingIndicator.value = false; 
   }
 });
 
@@ -65,12 +65,12 @@ async function sendMessage() {
   isLoading.value = true;
   const userMessageId = chatStore.addMessage('user', userInput.value); // Add user message
   console.log('User message added, ID:', userMessageId);
-  await nextTick(() => scrollToBottom()); // Scroll after adding user message
+  await nextTick(() => scrollToBottom());
 
   try {
     await nextTick(); // Ensure user message is rendered
     const botMessageId = chatStore.addMessage('model', ''); // Start with empty bot message (no isStarter)
-    typingIndicator.value = true; // Show typing indicator
+    typingIndicator.value = true; 
     await nextTick(() => scrollToBottom()); // Scroll after adding bot message
 
     const stream = streamResponse(userInput.value);
