@@ -100,7 +100,11 @@ async function sendMessage() {
   } catch (error) {
     console.error('Streaming error:', error);
     typingIndicator.value = false; // Hide typing indicator on error
-    const botMessageId = chatStore.messages.findLast((m: GeminiMessage) => m.role === 'model')?.timestamp || 0;
+    // Replace findLast with alternative implementation
+    const lastBotMessage = [...chatStore.messages]
+      .reverse()
+      .find((m: GeminiMessage) => m.role === 'model');
+    const botMessageId = lastBotMessage?.timestamp || 0;
     chatStore.updateMessage(botMessageId, 'Oops, something went wrong!');
     console.log('Error updated bot message, ID:', botMessageId);
     await nextTick(() => scrollToBottom()); // Scroll after error update
