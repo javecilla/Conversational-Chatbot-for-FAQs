@@ -27,7 +27,7 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
     return text.match(/[^\s.!?]+(?:\s+[^\s.!?]+)*[.!?]?/g) || [text];
   };
 
-  // Generate quick reply options based on chat history, prioritizing patternSuggestions, and excluding prior questions
+  // Generate quick reply options based on chat history, prioritizing category-based suggestions, and excluding prior questions
   const generateQuickReplies = async (history: GeminiMessage[], currentQuestion: string): Promise<string[]> => {
     let suggestions: string[] = []; 
 
@@ -45,23 +45,35 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
     const fuseMatch = fuse.search(currentQuestionLower).find(match => match.score! < 0.75);
     const currentFaqId = fuseMatch?.item.id || null;
 
-    // Prioritize patternSuggestions from the matched FAQ
+    // Prioritize category-based suggestions from the matched FAQ
     if (currentFaqId) {
       const currentFaq = faqs.find(faq => faq.id === currentFaqId);
-      if (currentFaq?.patternSuggestions) {
-        // Get suggested FAQ IDs from patternSuggestions, excluding previously asked questions
+      if (currentFaq?.category) {
+        // Get all FAQs in the same category, excluding the current question and previously asked questions
+        const sameCategoryFaqs = faqs
+          .filter(faq => faq.category === currentFaq.category && faq.id !== currentFaqId)
+          .filter(faq => !previousQuestions.includes(faq.question.toLowerCase().replace(/[.!?]+$/g, '').trim()))
+          .map(faq => faq.question);
+
+        // Use up to 3 suggestions from the same category
+        if (sameCategoryFaqs.length > 0) {
+          suggestions = sameCategoryFaqs.slice(0, 3);
+        }
+      }
+
+      // If no category-based suggestions or not enough, fall back to patternSuggestions
+      if (suggestions.length === 0 && currentFaq?.patternSuggestions) {
         const patternSuggestions = currentFaq.patternSuggestions
           .map(id => faqs.find(faq => faq.id === id))
           .filter(faq => faq && !previousQuestions.includes(faq.question.toLowerCase().replace(/[.!?]+$/g, '').trim()))
           .map(faq => faq!.question); // Use non-null assertion since we filtered for existence
 
-        // Use patternSuggestions if available, limiting to 3 suggestions
         if (patternSuggestions.length > 0) {
           suggestions = patternSuggestions.slice(0, 3);
         }
       }
 
-      // If no pattern suggestions or not enough, fall back to Fuse-based suggestions from related FAQs
+      // If still no suggestions or not enough, fall back to Fuse-based suggestions from related FAQs
       if (suggestions.length === 0) {
         const userKeywords = currentQuestionLower.split(/\s+/).filter(word => word.length > 1); // Relaxed to catch more keywords
 
@@ -88,12 +100,12 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
         const chatHistoryText = userInteractions.join('\n');
         const faqQuestions = faqs.map(faq => faq.question).join('\n');
         const geminiPrompt = `
-          You are Jerome Avecilla’s professional AI chatbot, designed to suggest up to 3 relevant follow-up questions based on the user’s previous questions and Jerome’s FAQ dataset. Suggest questions that are conversational, engaging, strictly align with the FAQ questions below, and use clear, professional language without typos, abbreviations, or random characters (e.g., 'gh', 'Ts'). Do not suggest questions that the user has already asked or clicked (previous questions: ${previousQuestions.join(', ')}), nor modify the phrasing significantly.
+          You are Jerome Avecilla’s professional AI chatbot, designed to suggest up to 3 relevant follow-up questions based on the user’s previous questions and Jerome’s FAQ dataset. Suggest questions that are conversational, engaging, strictly align with the FAQ questions below, and use clear, professional language without typos, abbreviations, or random characters (e.g., 'gh', 'Ts'). Do not suggest questions that the user has already asked or clicked (previous questions: ${previousQuestions.join(', ')}), nor modify the phrasing significantly. Prioritize questions from the same category as the current question if applicable.
 
           Previous User Questions:
           ${chatHistoryText || 'No previous questions.'}
 
-          FAQ Questions (only suggest from these, IDs 1–19):
+          FAQ Questions (only suggest from these, IDs 1–21):
           ${faqQuestions}
 
           Provide up to 3 suggested questions, separated by newlines, formatted as plain text questions (e.g., "What services do you offer?").
@@ -123,12 +135,12 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
       const chatHistoryText = userInteractions.join('\n');
       const faqQuestions = faqs.map(faq => faq.question).join('\n');
       const geminiPrompt = `
-        You are Jerome Avecilla’s professional AI chatbot, designed to suggest up to 3 relevant follow-up questions based on the user’s previous questions and Jerome’s FAQ dataset. Suggest questions that are conversational, engaging, strictly align with the FAQ questions below, and use clear, professional language without typos, abbreviations, or random characters (e.g., 'gh', 'Ts'). Do not suggest questions that the user has already asked or clicked (previous questions: ${previousQuestions.join(', ')}), nor modify the phrasing significantly.
+        You are Jerome Avecilla’s professional AI chatbot, designed to suggest up to 3 relevant follow-up questions based on the user’s previous questions and Jerome’s FAQ dataset. Suggest questions that are conversational, engaging, strictly align with the FAQ questions below, and use clear, professional language without typos, abbreviations, or random characters (e.g., 'gh', 'Ts'). Do not suggest questions that the user has already asked or clicked (previous questions: ${previousQuestions.join(', ')}), nor modify the phrasing significantly. Prioritize questions from common categories (e.g., Services, About Me) if applicable.
 
         Previous User Questions:
         ${chatHistoryText || 'No previous questions.'}
 
-        FAQ Questions (only suggest from these, IDs 1–19):
+        FAQ Questions (only suggest from these, IDs 1–21):
         ${faqQuestions}
 
         Provide up to 3 suggested questions, separated by newlines, formatted as plain text questions (e.g., "What services do you offer?").
@@ -202,21 +214,21 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
         TASK:
         - If the user’s input is a question (e.g., contains 'how,' 'what,' 'why,' 'when,' 'where,' or 'who,' or ends with '?'), answer using *only* the information in the FAQ dataset, ensuring no random or incomplete words appear, and always respond in the first person as Jerome (e.g., "I’m Jerome Avecilla," "You can connect with me," "My skills include").
         - If the user’s input is not a question and doesn’t match any FAQ (e.g., compliments like 'that’s nice,' 'you’re good,' 'well done,' or casual remarks), use Gemini to generate a natural, professional acknowledgment or response (e.g., "Thank you, I appreciate your kind words! It’s great to hear you feel that way about me..."). Do not assume it’s a FAQ question or prepend FAQ answers; instead, craft a standalone, relevant response that enhances engagement while remaining formal.
-        - Adapt the response to the user’s tone and context, including acknowledging chat history if asked (e.g., "what is my previous chat?" or repeats of prior questions).
+        - Adapt the response to the user’s tone and context, including acknowledging chat history if asked (e.g., "what is my previous chat?" or repeats of prior questions), considering the category of the current or previous FAQ for context.
         - Use the FAQ answer that best matches the question, rephrasing it conversationally without changing its factual content, and maintain a professional tone (e.g., "How can I assist you today?" instead of informal greetings). Ensure responses consistently use "me," "I," or "my" to refer to Jerome, even if the user mentions "him" or "Jerome" (e.g., for "how can I contact him," respond "You can connect with me via LinkedIn...").
-        - If the top FAQ match (provided below) has a score < 0.75, prioritize its answer unless the user’s question clearly aligns with a different FAQ or chat history.
-        - If the user asks about previous chats (e.g., "what was my last question?" or "what did I ask before?"), summarize or repeat the last 1-3 user questions and bot responses from the chat history in a formal manner, using "me" or "I" to refer to Jerome.
+        - If the top FAQ match (provided below) has a score < 0.75, prioritize its answer, considering its category for context if relevant.
+        - If the user asks about previous chats (e.g., "what was my last question?" or "what did I ask before?"), summarize or repeat the last 1-3 user questions and bot responses from the chat history in a formal manner, using "me" or "I" to refer to Jerome, and suggest follow-ups from the same category if applicable.
         - If the question is unrelated to Jerome Avecilla, his services, skills, projects, personal details, or chat history, respond with: "I’m Jerome’s chatbot, and I can only chat about me, my services, projects, interests, or our previous conversation. How may I assist you further regarding me?"
         - Return *only the answer text*, no "ID: X A:" prefixes.
 
         FAQ Dataset:
-        ${faqs.map(faq => `ID: ${faq.id}\nQ: ${faq.question}\nA: ${faq.answer}\nKeywords: ${faq.keywords?.join(', ') || ''}`).join('\n\n')}
+        ${faqs.map(faq => `ID: ${faq.id}\nQ: ${faq.question}\nA: ${faq.answer}\nKeywords: ${faq.keywords?.join(', ') || ''}\nCategory: ${faq.category || 'Uncategorized'}`).join('\n\n')}
 
         Chat History (last 5 messages, most recent first):
         ${chatHistory || 'No previous chats.'}
 
         Top FAQ Match (if any):
-        ${topMatch ? `ID: ${topMatch.id}\nQ: ${topMatch.question}\nA: ${topMatch.answer}` : 'None'}
+        ${topMatch ? `ID: ${topMatch.id}\nQ: ${topMatch.question}\nA: ${topMatch.answer}\nCategory: ${topMatch.category || 'Uncategorized'}` : 'None'}
       `;
 
       const geminiResponse = await useGemini(userInput, faqContext);
