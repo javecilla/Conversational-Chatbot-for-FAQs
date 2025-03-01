@@ -76,35 +76,34 @@ src/
 ## Next Steps
 
 #### **1️⃣ User-Friendly Interface**  
-🔲 **Collapsible Chat Box** - like the messenger interface
-🔲 **Option to End Chat & Start a New Conversation** 
-🔲 **Customizable Chat Theme** – Allow users to toggle between light/dark mode or select a theme.  
-✅ **Typing Indicator** – Show a "bot is typing..." animation for a more natural feel.  
-✅ **Quick Reply Buttons** – Provide suggested questions that users can tap instead of typing.  
-✅ **Starter Categorizationonversation** - Show a "starter conversation for a more natural like "Hello i am Javecilla ChatBot, How can i assist you?" and then show suggestions questions like "Who are you?", "What’s your background? and  "What services do you offer?",
+- 🔲 **Collapsible Chat Box** - like the messenger interface.
+- 🔲 **Option to End Chat & Start a New Conversation** 
+- 🔲 **Customizable Chat Theme** – Allow users to toggle between light/dark mode or select a theme.  
+- ✅ **Typing Indicator** – Show a "bot is typing..." animation for a more natural feel.  
+- ✅ **Quick Reply Buttons** – Provide suggested questions that users can tap instead of typing.  
+- ✅ **Starter Categorizationonversation** - Show a "starter conversation for a more natural like "Hello i am Javecilla ChatBot, How can i assist you?" and then show suggestions questions like "Who are you?", "What’s your background? and  "What services do you offer?",
 
 #### **2️⃣ Improved Chat Experience**  
-✅ **Chunked AI Responses for Real-Time Feel** - Show AI responses in chunks for a more natural flow.
-✅ **Autoscroll to Latest Message** – Ensure new messages are always visible.  
-🔲 **Message Timestamp** – Show timestamps for each user and bot message.  
-🔲 **Emoji & Markdown Support** – Improve readability and engagement with emojis or formatting (bold, italics, etc.).  
+- ✅ **Chunked AI Responses for Real-Time Feel** - Show AI responses in chunks for a more natural flow.
+- ✅ **Autoscroll to Latest Message** – Ensure new messages are always visible.  
+- ✅ **Message Timestamp** – Show timestamps for each user and bot message.  
+- 🔲 **Emoji & Markdown Support** – Improve readability and engagement with emojis or formatting (bold, italics, etc.).  
 
 #### **3️⃣ Persistent & Session-Based Features**  
-✅ **Store Chat (state-pinia) History for Current Session** 
-🔲 **Load Previous Chats on Page Reload** – Restore chat history when the user revisits.  
-🔲 **Local Storage or Database Option** – Store chat history beyond the current session for returning users.  
+- ✅ **Store Chat (state-pinia) History for Current Session** 
+- 🔲 **Load Previous Chats on Page Reload** – Restore chat history when the user revisits.  
+- 🔲 **Local Storage or Database Option** – Store chat history beyond the current session for returning users.  
 
 #### **4️⃣ Smart Features & Enhancements**  
-✅ **Smart Search for FAQs** – Let users type keywords, and the chatbot suggests related FAQs.  
-✅ **Fallback Handling** – If the bot doesn't know an answer, it can guide the user to contact you or check your website.  
-✅ **FAQ Categorization** – Organize FAQs into categories (e.g., Services, Pricing, Contact).  
-🔲 **Voice-to-Text Support** – Allow users to speak their question instead of typing.  
-🔲 **Multilingual Support** – allow switching languages.  
+- ✅ **Smart Search for FAQs** – Let users type keywords, and the chatbot suggests related FAQs.  
+- ✅ **Fallback Handling** – If the bot doesn't know an answer, it can guide the user to contact you or check your website.  
+- ✅ **FAQ Categorization** – Organize FAQs into categories (e.g., Services, Pricing, Contact).  
+- 🔲 **Voice-to-Text Support** – Allow users to speak their question instead of typing.  
+- 🔲 **Multilingual Support** – allow switching languages.  
 
 #### **5️⃣ Accessibility**  
-✅ **Screen Reader Support** – Ensure content is readable by screen readers.  
-🔲 **Keyboard Navigation** – Allow users to navigate the chat interface using the keyboard
-...
+- ✅ **Screen Reader Support** – Ensure content is readable by screen readers.  
+- 🔲 **Keyboard Navigation** – Allow users to navigate the chat interface using the keyboard
 
 ## Demo
 

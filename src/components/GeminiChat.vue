@@ -142,9 +142,17 @@ const selectOption = async (option: string) => {
         <div class="flex-1">
           <!-- Bot name for assistant messages -->
           <div v-if="msg.role !== 'user'" class="text-sm text-start font-medium text-gray-600 mb-1">
-            BOT (Javecilla)
+            BOT (Javecilla) -
+            <!-- Timestamp display -->
+            <span class="text-gray-600 text-sm text-left mt-1">
+              {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+            </span>
           </div>
 
+          <!-- Timestamp for user messages -->
+          <div v-if="msg.role === 'user'" class="text-gray-600 text-sm text-right mb-1">
+            {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+          </div>
           <!-- Message bubble -->
           <div
             :class="[
@@ -166,17 +174,19 @@ const selectOption = async (option: string) => {
             </div>
           </div>
 
-            <!-- Quick Reply Buttons for bot messages -->
-            <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
-              <button
-                v-for="option in msg.options"
-                :key="option"
-                class="px-4 py-2 bg-transparent rounded-full border border-purple-200 text-white hover:scale-[1.01] hover:border-purple-600 transition-colors text-sm"
-                @click="selectOption(option)"
-              >
-                {{ option }}
-              </button>
-            </div>
+          
+
+          <!-- Quick Reply Buttons for bot messages -->
+          <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
+            <button
+              v-for="option in msg.options"
+              :key="option"
+              class="px-4 py-2 bg-transparent rounded-full border border-purple-200 text-white hover:scale-[1.01] hover:border-purple-600 transition-colors text-sm"
+              @click="selectOption(option)"
+            >
+              {{ option }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -200,7 +210,6 @@ const selectOption = async (option: string) => {
     </form>
   </div>
 </template>
-
 <style scoped>
 .typing-dots {
   display: inline-block;
