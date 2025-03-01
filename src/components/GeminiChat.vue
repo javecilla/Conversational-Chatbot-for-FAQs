@@ -1,15 +1,24 @@
+// /src/components/GeminiChat.vue
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'; 
 import { useChatStore } from '@/stores/chat';
 import { useChatBot } from '@/utils/chatBot';
 import type { GeminiMessage } from '@/types/ai';
+import MarkdownIt from 'markdown-it'; // Import markdown-it
 
 const userInput = ref('');
 const isLoading = ref(false);
 const typingIndicator = ref(false);
 
 const chatStore = useChatStore();
-const { streamResponse, generateQuickReplies } = useChatBot(chatStore); 
+const { streamResponse, generateQuickReplies } = useChatBot(chatStore);
+
+// Initialize markdown parser - remove require() call
+const md = new MarkdownIt({
+  html: true, // Allow HTML in Markdown
+  breaks: true, // Convert newlines to <br>
+  linkify: true, // Autoconvert URL-like text to links
+});
 
 // Method to scroll chat container to the bottom
 const scrollToBottom = () => {
@@ -21,41 +30,39 @@ const scrollToBottom = () => {
 
 // Reset chat store on mount to ensure a fresh session
 onMounted(async () => {
-  chatStore.resetMessages(); // Ensure messages start empty on page load
+  chatStore.resetMessages();
   console.log('Chat Store initialized, messages:', chatStore.messages);
 
   // Start with a bot greeting
-  const starterMessage = 'Hello, I am Javecilla ChatBot. How can I assist you?';
-  const botMessageId = chatStore.addMessage('model', '', undefined, true); // Pass undefined for options, true for isStarter
-  typingIndicator.value = true; 
-  await nextTick(() => scrollToBottom()); // Scroll after adding bot message
+  //const starterMessage = 'Hello, I am Javecilla ChatBot. How can I assist you? 😊';
+  const botMessageId = chatStore.addMessage('model', '', undefined, true);
+  typingIndicator.value = true;
+  await nextTick(() => scrollToBottom());
 
   try {
-    const stream = streamResponse(starterMessage, true); // Pass isStarter flag to streamResponse
+    const stream = streamResponse('', true); //empty prompt and flag isStart as true for first conversation
     let fullResponse = '';
 
-    // Stream the starter message
     for await (const chunk of stream) {
       console.log('Starter chunk:', chunk);
       fullResponse += chunk + ' ';
       await nextTick(() => {
         chatStore.updateMessage(botMessageId, fullResponse.trim());
-        scrollToBottom(); // Scroll after each chunk update
+        scrollToBottom();
       });
     }
 
-    // Hardcode starter quick replies for the initial conversation
     const starterQuickReplies = ['Who are you?', 'Do you accept project commissions?', 'What services do you offer?'];
     console.log('Starter quick replies hardcoded:', starterQuickReplies);
-    chatStore.updateMessage(botMessageId, fullResponse.trim(), starterQuickReplies); // Update with hardcoded options
+    chatStore.updateMessage(botMessageId, fullResponse.trim(), starterQuickReplies);
 
-    await nextTick(() => scrollToBottom()); // Scroll to show starter message
+    await nextTick(() => scrollToBottom());
   } catch (error) {
     console.error('Starter conversation error:', error);
     chatStore.updateMessage(botMessageId, 'Oops, something went wrong with the starter message!');
-    await nextTick(() => scrollToBottom()); // Scroll after error
+    await nextTick(() => scrollToBottom());
   } finally {
-    typingIndicator.value = false; 
+    typingIndicator.value = false;
   }
 });
 
@@ -63,69 +70,63 @@ async function sendMessage() {
   if (!userInput.value.trim() || isLoading.value) return;
 
   isLoading.value = true;
-  const userMessageId = chatStore.addMessage('user', userInput.value); // Add user message
+  const userMessageId = chatStore.addMessage('user', userInput.value);
   console.log('User message added, ID:', userMessageId);
   await nextTick(() => scrollToBottom());
 
   try {
-    await nextTick(); // Ensure user message is rendered
-    const botMessageId = chatStore.addMessage('model', ''); // Start with empty bot message (no isStarter)
-    typingIndicator.value = true; 
-    await nextTick(() => scrollToBottom()); // Scroll after adding bot message
+    await nextTick();
+    const botMessageId = chatStore.addMessage('model', '');
+    typingIndicator.value = true;
+    await nextTick(() => scrollToBottom());
 
-    const stream = streamResponse(userInput.value);
+    const stream = streamResponse(userInput.value as string); // Explicit type assertion
     let fullResponse = '';
 
-    // Stream chunks and update the bot message progressively
     for await (const chunk of stream) {
       console.log('Received chunk:', chunk);
       fullResponse += chunk + ' ';
-      typingIndicator.value = false; // Hide typing indicator as response starts
+      typingIndicator.value = false;
       await nextTick(() => {
         chatStore.updateMessage(botMessageId, fullResponse.trim());
-        scrollToBottom(); // Scroll after each chunk update
+        scrollToBottom();
       });
     }
 
-    // Add quick reply options after the response, using the current user question
-    const chatHistory = chatStore.messages.slice(-5); // Last 5 messages for context
-    const quickReplies = await generateQuickReplies(chatHistory, userInput.value); // Await the Promise
-    console.log('Quick replies generated:', quickReplies); // Debug quick replies
+    const chatHistory = chatStore.messages.slice(-5);
+    const quickReplies = await generateQuickReplies(chatHistory, userInput.value);
+    console.log('Quick replies generated:', quickReplies);
     if (quickReplies.length > 0) {
-      chatStore.updateMessage(botMessageId, fullResponse.trim(), quickReplies); // Update with options
+      chatStore.updateMessage(botMessageId, fullResponse.trim(), quickReplies);
     }
 
     console.log('Full response streamed:', fullResponse.trim());
     userInput.value = '';
   } catch (error) {
     console.error('Streaming error:', error);
-    typingIndicator.value = false; // Hide typing indicator on error
-    // Replace findLast with alternative implementation
-    const lastBotMessage = [...chatStore.messages]
-      .reverse()
-      .find((m: GeminiMessage) => m.role === 'model');
+    typingIndicator.value = false;
+    const lastBotMessage = [...chatStore.messages].reverse().find((m: GeminiMessage) => m.role === 'model');
     const botMessageId = lastBotMessage?.timestamp || 0;
     chatStore.updateMessage(botMessageId, 'Oops, something went wrong!');
     console.log('Error updated bot message, ID:', botMessageId);
-    await nextTick(() => scrollToBottom()); // Scroll after error update
+    await nextTick(() => scrollToBottom());
   } finally {
     isLoading.value = false;
   }
 }
 
 const selectOption = async (option: string) => {
-  // Set userInput to the selected option to simulate user typing
-  userInput.value = option.trim().replace(/[.!?]+$/g, ''); // Normalize input
-  console.log('Selected option:', userInput.value);  
-  await sendMessage(); // Trigger sendMessage with the selected option
-  nextTick(() => scrollToBottom()); // Scroll after the bot responds
+  userInput.value = option.trim().replace(/[.!?]+$/g, '');
+  console.log('Selected option:', userInput.value);
+  await sendMessage();
+  nextTick(() => scrollToBottom());
 };
 </script>
 
 <template>
   <div class="p-4 max-w-6xl mx-auto">
-    <!-- Chat container -->
-    <div class="space-y-6 mb-4 max-h-[600px] w-[700px] overflow-y-auto">
+    <!-- Chat container - update space-y value -->
+    <div class="space-y-3 mb-4 max-h-[600px] w-[700px] overflow-y-auto"> <!-- Changed from space-y-6 to space-y-2 -->
       <div v-for="msg in chatStore.messages" :key="msg.timestamp" class="flex items-start gap-3">
         <!-- Bot avatar for assistant messages -->
         <div v-if="msg.role !== 'user'" class="flex-shrink-0">
@@ -140,11 +141,10 @@ const selectOption = async (option: string) => {
 
         <!-- Message content -->
         <div class="flex-1">
-          <!-- Bot name for assistant messages -->
-          <div v-if="msg.role !== 'user'" class="text-sm text-start font-medium text-gray-600 mb-1">
+          <!-- Bot name and timestamp for assistant messages -->
+          <div v-if="msg.role !== 'user'" class="text-sm text-start font-medium text-gray-600 mb-1 flex items-center">
             BOT (Javecilla) -
-            <!-- Timestamp display -->
-            <span class="text-gray-600 text-sm text-left mt-1">
+            <span class="text-gray-600 text-sm ml-2">
               {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
             </span>
           </div>
@@ -153,28 +153,28 @@ const selectOption = async (option: string) => {
           <div v-if="msg.role === 'user'" class="text-gray-600 text-sm text-right mb-1">
             {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
           </div>
-          <!-- Message bubble -->
+
+          <!-- Message bubble with Markdown rendering -->
           <div
             :class="[
-              'p-4 rounded-2xl max-w-[85%] text-start',
-              msg.role === 'user' 
-                ? 'ml-auto bg-purple-500 text-white' 
-                : (msg.isStarter ? 'bg-[#b4a7d6]' : 'bg-gray-100') // Conditional background for starter message
+              'py-2 px-5 rounded-2xl max-w-[85%] text-start break-words',
+              msg.role === 'user'
+                ? 'ml-auto bg-purple-500 text-white'
+                : (msg.isStarter ? 'bg-[#b4a7d6]' : 'bg-gray-100')
             ]"
           >
-            <!-- Text content or Typing Indicator -->
-            <div :class="msg.role === 'user' ? 'text-white' : 'text-gray-800'">
-              <!-- Show typing indicator for bot messages if typing -->
-              <span v-if="msg.role === 'model' && !msg.content && typingIndicator">
-                Bot is typing
-                <span class="typing-dots">...</span>
-              </span>
-              <!-- Show actual content if present -->
-              <span v-else>{{ msg.content }}</span>
+            <!-- Typing Indicator (outside v-html) -->
+            <div v-if="msg.role === 'model' && !msg.content && typingIndicator" class="text-gray-800 py-2 px-1 ">
+              Bot is typing
+              <span class="typing-dots">...</span>
             </div>
-          </div>
 
-          
+            <!-- Render Markdown content -->
+            <div
+              :class="msg.role === 'user' ? 'text-white' : 'text-gray-800'"
+              v-html="md.render(msg.content || '')"
+            ></div>
+          </div>
 
           <!-- Quick Reply Buttons for bot messages -->
           <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
@@ -210,6 +210,7 @@ const selectOption = async (option: string) => {
     </form>
   </div>
 </template>
+
 <style scoped>
 .typing-dots {
   display: inline-block;
@@ -220,5 +221,47 @@ const selectOption = async (option: string) => {
   0% { opacity: 0.2; }
   20% { opacity: 1; }
   100% { opacity: 0.2; }
+}
+
+/* Markdown styles */
+:deep(p) {
+  margin: 0.5em 0;
+}
+:deep(strong) {
+  font-weight: bold;
+}
+:deep(em) {
+  font-style: italic;
+}
+:deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+:deep(th, td) {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+:deep(th) {
+  background-color: #f2f2f2;
+}
+/* Add list styles */
+:deep(ul) {
+  list-style-type: disc;
+  margin-left: 20px;
+  padding-left: 0;
+}
+:deep(li) {
+  margin-bottom: 5px;
+}
+/* Add ordered list styles */
+:deep(ol) {
+  list-style-type: decimal;
+  margin-left: 20px;
+  padding-left: 0;
+}
+:deep(ol li) {
+  margin-bottom: 5px;
 }
 </style>

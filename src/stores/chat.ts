@@ -6,6 +6,7 @@ export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as GeminiMessage[],
   }),
+
   actions: {
     addMessage(role: 'user' | 'model', content: string, options?: string[], isStarter: boolean = false) {
       const message: GeminiMessage = {
@@ -16,13 +17,13 @@ export const useChatStore = defineStore('chat', {
         isStarter,
       };
       this.messages.push(message);
-      return message.timestamp;
+      return message.timestamp; // Ensure unique timestamps
     },
     updateMessage(timestamp: number, content: string, options?: string[]) {
       const message = this.messages.find((m: GeminiMessage) => m.timestamp === timestamp);
       if (message) {
         message.content = content;
-        if (options !== undefined) message.options = options;
+        if (options !== undefined) message.options = options; // Update options if provided
       }
     },
     resetMessages() {
@@ -31,7 +32,7 @@ export const useChatStore = defineStore('chat', {
     getMessageByTimestamp(timestamp: number): GeminiMessage | undefined {
       let message = this.messages.find((m: GeminiMessage) => m.timestamp === timestamp);
       if (!message) {
-        const tolerance = 5 * 60 * 1000; // 5-minute tolerance
+        const tolerance = 5 * 60 * 1000; // 5-minute tolerance in milliseconds
         const targetTime = new Date(timestamp).getTime();
         message = this.messages.reduce((closest, current) => {
           const currentDiff = Math.abs(current.timestamp - targetTime);

@@ -87,7 +87,7 @@ src/
 - ✅ **Chunked AI Responses for Real-Time Feel** - Show AI responses in chunks for a more natural flow.
 - ✅ **Autoscroll to Latest Message** – Ensure new messages are always visible.  
 - ✅ **Message Timestamp** – Show timestamps for each user and bot message.  
-- 🔲 **Emoji & Markdown Support** – Improve readability and engagement with emojis or formatting (bold, italics, etc.).  
+- ✅ **Emoji & Markdown Support** – Improve readability and engagement with emojis or formatting (bold, italics, etc.).  
 
 #### **3️⃣ Persistent & Session-Based Features**  
 - ✅ **Store Chat (state-pinia) History for Current Session** 
