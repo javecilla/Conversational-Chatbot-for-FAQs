@@ -4,7 +4,7 @@ export interface GeminiMessage {
   content: string;
   timestamp: number;
   options?: string[];
-  isStarter?: boolean; // Optional flag for starter message
+  isStarter?: boolean; 
 }
 
 export interface GeminiContent {

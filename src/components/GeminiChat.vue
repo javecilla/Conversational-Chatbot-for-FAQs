@@ -1,61 +1,48 @@
-// /src/components/GeminiChat.vue
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'; 
+import { ref, nextTick, onMounted } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useChatBot } from '@/utils/chatBot';
 import type { GeminiMessage } from '@/types/ai';
-import MarkdownIt from 'markdown-it'; // Import markdown-it
+import MarkdownIt from 'markdown-it';
+import { PlusIcon, EllipsisIcon, ArrowUpIcon } from "lucide-vue-next";
 
 const userInput = ref('');
 const isLoading = ref(false);
 const typingIndicator = ref(false);
 
 const chatStore = useChatStore();
-const { streamResponse, generateQuickReplies } = useChatBot(chatStore);
+const { streamResponse, generateQuickReplies, isOffTopic, resetOffTopic } = useChatBot(chatStore);
 
-// Initialize markdown parser - remove require() call
-const md = new MarkdownIt({
-  html: true, // Allow HTML in Markdown
-  breaks: true, // Convert newlines to <br>
-  linkify: true, // Autoconvert URL-like text to links
-});
+const md = new MarkdownIt({ html: true, breaks: true, linkify: true });
 
-// Method to scroll chat container to the bottom
 const scrollToBottom = () => {
   const chatContainer = document.querySelector('.overflow-y-auto');
-  if (chatContainer) {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-  }
+  if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
 };
 
-// Reset chat store on mount to ensure a fresh session
+const getStarterQuickReplies = () => [
+  'Who are you?',
+  'Do you accept project commissions?',
+  'What services do you offer?',
+];
+
 onMounted(async () => {
   chatStore.resetMessages();
-  console.log('Chat Store initialized, messages:', chatStore.messages);
-
-  // Start with a bot greeting
-  //const starterMessage = 'Hello, I am Javecilla ChatBot. How can I assist you? 😊';
   const botMessageId = chatStore.addMessage('model', '', undefined, true);
   typingIndicator.value = true;
   await nextTick(() => scrollToBottom());
 
   try {
-    const stream = streamResponse('', true); //empty prompt and flag isStart as true for first conversation
+    const stream = streamResponse('', true);
     let fullResponse = '';
-
     for await (const chunk of stream) {
-      console.log('Starter chunk:', chunk);
       fullResponse += chunk + ' ';
       await nextTick(() => {
         chatStore.updateMessage(botMessageId, fullResponse.trim());
         scrollToBottom();
       });
     }
-
-    const starterQuickReplies = ['Who are you?', 'Do you accept project commissions?', 'What services do you offer?'];
-    console.log('Starter quick replies hardcoded:', starterQuickReplies);
-    chatStore.updateMessage(botMessageId, fullResponse.trim(), starterQuickReplies);
-
+    chatStore.updateMessage(botMessageId, fullResponse.trim(), getStarterQuickReplies());
     await nextTick(() => scrollToBottom());
   } catch (error) {
     console.error('Starter conversation error:', error);
@@ -71,7 +58,6 @@ async function sendMessage() {
 
   isLoading.value = true;
   const userMessageId = chatStore.addMessage('user', userInput.value);
-  console.log('User message added, ID:', userMessageId);
   await nextTick(() => scrollToBottom());
 
   try {
@@ -80,11 +66,9 @@ async function sendMessage() {
     typingIndicator.value = true;
     await nextTick(() => scrollToBottom());
 
-    const stream = streamResponse(userInput.value as string); // Explicit type assertion
+    const stream = streamResponse(userInput.value as string);
     let fullResponse = '';
-
     for await (const chunk of stream) {
-      console.log('Received chunk:', chunk);
       fullResponse += chunk + ' ';
       typingIndicator.value = false;
       await nextTick(() => {
@@ -95,12 +79,9 @@ async function sendMessage() {
 
     const chatHistory = chatStore.messages.slice(-5);
     const quickReplies = await generateQuickReplies(chatHistory, userInput.value);
-    console.log('Quick replies generated:', quickReplies);
     if (quickReplies.length > 0) {
       chatStore.updateMessage(botMessageId, fullResponse.trim(), quickReplies);
     }
-
-    console.log('Full response streamed:', fullResponse.trim());
     userInput.value = '';
   } catch (error) {
     console.error('Streaming error:', error);
@@ -108,7 +89,6 @@ async function sendMessage() {
     const lastBotMessage = [...chatStore.messages].reverse().find((m: GeminiMessage) => m.role === 'model');
     const botMessageId = lastBotMessage?.timestamp || 0;
     chatStore.updateMessage(botMessageId, 'Oops, something went wrong!');
-    console.log('Error updated bot message, ID:', botMessageId);
     await nextTick(() => scrollToBottom());
   } finally {
     isLoading.value = false;
@@ -117,71 +97,110 @@ async function sendMessage() {
 
 const selectOption = async (option: string) => {
   userInput.value = option.trim().replace(/[.!?]+$/g, '');
-  console.log('Selected option:', userInput.value);
   await sendMessage();
   nextTick(() => scrollToBottom());
+};
+
+const startNewConversation = async () => {
+  // Only show confirmation if:
+  // 1. There are existing messages (not a fresh chat)
+  // 2. Not in off-topic state (user hasn't been asked to restart)
+  if (chatStore.messages.length > 1 && !isOffTopic.value) {
+    if (!confirm('Are you sure you want to end this chat and start a new one?')) {
+      return;
+    }
+  }
+
+  // Rest of the function remains the same
+  chatStore.resetMessages();
+  userInput.value = '';
+  resetOffTopic();
+  const botMessageId = chatStore.addMessage('model', '', undefined, true);
+  typingIndicator.value = true;
+  await nextTick(() => scrollToBottom());
+
+  try {
+    const stream = streamResponse('', true);
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      fullResponse += chunk + ' ';
+      await nextTick(() => {
+        chatStore.updateMessage(botMessageId, fullResponse.trim());
+        scrollToBottom();
+      });
+    }
+    chatStore.updateMessage(botMessageId, fullResponse.trim(), getStarterQuickReplies());
+    await nextTick(() => scrollToBottom());
+  } catch (error) {
+    console.error('Starter conversation error:', error);
+    chatStore.updateMessage(botMessageId, 'Oops, something went wrong with the starter message!');
+    await nextTick(() => scrollToBottom());
+  } finally {
+    typingIndicator.value = false;
+  }
 };
 </script>
 
 <template>
-  <div class="p-4 max-w-6xl mx-auto">
-    <!-- Chat container - update space-y value -->
-    <div class="space-y-3 mb-4 max-h-[600px] w-[700px] overflow-y-auto"> <!-- Changed from space-y-6 to space-y-2 -->
+  <div class="p-4 max-w-6xl mx-auto h-100">
+    <div class="relative space-y-3 mb-4 max-h-[600px] w-[700px] overflow-y-auto">
       <div v-for="msg in chatStore.messages" :key="msg.timestamp" class="flex items-start gap-3">
-        <!-- Bot avatar for assistant messages -->
         <div v-if="msg.role !== 'user'" class="flex-shrink-0">
           <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="w-5 h-5 text-purple-500"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <path d="M12 2a8 8 0 0 1 8 8v1h2v3h-2v1a8 8 0 0 1-16 0v-1H2v-3h2v-1a8 8 0 0 1 8-8z" />
               <path d="M9 12h.01" />
               <path d="M15 12h.01" />
             </svg>
           </div>
         </div>
-
-        <!-- Message content -->
         <div class="flex-1">
-          <!-- Bot name and timestamp for assistant messages -->
-          <div v-if="msg.role !== 'user'" class="text-sm text-start font-medium text-gray-600 mb-1 flex items-center">
+          <div
+            v-if="msg.role !== 'user'"
+            class="text-sm text-start font-medium text-gray-600 mb-1 flex items-center"
+          >
             BOT (Javecilla) -
             <span class="text-gray-600 text-sm ml-2">
               {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
             </span>
           </div>
-
-          <!-- Timestamp for user messages -->
           <div v-if="msg.role === 'user'" class="text-gray-600 text-sm text-right mb-1">
             {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
           </div>
-
-          <!-- Message bubble with Markdown rendering -->
           <div
             :class="[
               'py-2 px-5 rounded-2xl max-w-[85%] text-start break-words',
               msg.role === 'user'
                 ? 'ml-auto bg-purple-500 text-white'
-                : (msg.isStarter ? 'bg-[#b4a7d6]' : 'bg-gray-100')
+                : msg.isStarter
+                  ? 'bg-[#b4a7d6]'
+                  : 'bg-gray-100',
             ]"
           >
-            <!-- Typing Indicator (outside v-html) -->
-            <div v-if="msg.role === 'model' && !msg.content && typingIndicator" class="text-gray-800 py-2 px-1 ">
+            <div
+              v-if="msg.role === 'model' && !msg.content && typingIndicator"
+              class="text-gray-800 py-2 px-1"
+            >
               Bot is typing
               <span class="typing-dots">...</span>
             </div>
-
-            <!-- Render Markdown content -->
             <div
               :class="msg.role === 'user' ? 'text-white' : 'text-gray-800'"
               v-html="md.render(msg.content || '')"
             ></div>
           </div>
-
-          <!-- Quick Reply Buttons for bot messages -->
           <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
             <button
               v-for="option in msg.options"
               :key="option"
-              class="px-4 py-2 bg-transparent rounded-full border border-purple-200 text-white hover:scale-[1.01] hover:border-purple-600 transition-colors text-sm"
+              class="px-4 py-2 bg-transparent rounded-xl border border-purple-200 text-white hover:scale-[1.01] hover:border-purple-600 transition-colors text-sm"
               @click="selectOption(option)"
             >
               {{ option }}
@@ -190,40 +209,55 @@ const selectOption = async (option: string) => {
         </div>
       </div>
     </div>
-
-    <!-- Input form -->
-    <form @submit.prevent="sendMessage" class="space-y-4 w-auto">
-      <textarea
-        v-model="userInput"
-        class="w-full p-4 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-        placeholder="Type your message..."
-        rows="3"
-        :disabled="isLoading"
-      />
-      <button
-        type="submit"
-        :disabled="isLoading || !userInput.trim()"
-        class="w-full px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-50 disabled:hover:bg-purple-500 transition-colors font-medium"
-      >
-        {{ isLoading ? 'Typing...' : 'Send' }}
-      </button>
+    <form @submit.prevent="sendMessage" class="relative w-full flex flex-col bg-gray-800 rounded-xl p-2">
+      <div class="flex flex-col flex-grow min-h-[20px]">
+        <textarea
+          v-model="userInput"
+          class="w-full p-2 border-none bg-transparent text-white resize-none focus:ring-0 focus:outline-none flex-grow min-h-[50px]"
+          placeholder="Ask anything..."
+          rows="2"
+          :disabled="isLoading || isOffTopic"
+        />
+      </div>
+      <div class="flex items-center justify-between gap-4 pt-2 pb-1 px-2 mt-1">
+        <button
+          @click="startNewConversation"
+          type="button"
+          class="flex items-center justify-center px-4 py-2 bg-gray-700 rounded-xl hover:bg-gray-600 transition-colors text-white"
+          :class="{ 'animate-pulse': isOffTopic }"
+          title="Start a new conversation"
+        >
+          <PlusIcon class="w-5 h-5 text-white forced-icon mr-1" stroke-width="1.5" />
+          New 
+        </button>
+        <button
+          type="submit"
+          :disabled="isLoading || !userInput.trim() || isOffTopic"
+          class="flex items-center justify-center px-6 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-50 transition-colors"
+        >
+          {{ isLoading ? 'Sending...' : 'Send' }}
+        </button>
+      </div>
     </form>
   </div>
 </template>
 
 <style scoped>
+.forced-icon {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: white !important;
+  display: block !important;
+}
 .typing-dots {
   display: inline-block;
   animation: blink 1.5s infinite;
 }
-
 @keyframes blink {
   0% { opacity: 0.2; }
   20% { opacity: 1; }
   100% { opacity: 0.2; }
 }
-
-/* Markdown styles */
 :deep(p) {
   margin: 0.5em 0;
 }
@@ -246,7 +280,6 @@ const selectOption = async (option: string) => {
 :deep(th) {
   background-color: #f2f2f2;
 }
-/* Add list styles */
 :deep(ul) {
   list-style-type: disc;
   margin-left: 20px;
@@ -255,7 +288,6 @@ const selectOption = async (option: string) => {
 :deep(li) {
   margin-bottom: 5px;
 }
-/* Add ordered list styles */
 :deep(ol) {
   list-style-type: decimal;
   margin-left: 20px;
@@ -263,5 +295,15 @@ const selectOption = async (option: string) => {
 }
 :deep(ol li) {
   margin-bottom: 5px;
+}
+
+textarea {
+  overflow-y: auto;
+  max-height: 200px; /* Limit maximum height */
+}
+
+/* Make sure buttons don't shrink */
+button {
+  flex-shrink: 0;
 }
 </style>

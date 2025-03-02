@@ -4,6 +4,7 @@ import { faqs } from '@/data/faqs';
 import type { GeminiMessage } from '@/types/ai';
 import type { FAQ } from '@/types/faqs'; // Corrected import
 import { useAI } from '@/composables/useAI';
+import { ref } from 'vue';
 
 export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')['useChatStore']>) => {
   const { useGemini } = useAI(); 
@@ -36,11 +37,11 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
     const userInteractions = history
       .filter(msg => msg.role === 'user' && msg.content.trim())
       .map(msg => msg.content.trim().toLowerCase().replace(/[.!?]+$/g, '').trim()); // Remove trailing punctuation, normalize, and trim whitespace
-    console.log('User Interactions (Previous Questions):', userInteractions); 
+    //console.log('User Interactions (Previous Questions):', userInteractions); 
     const previousQuestions = [...new Set(userInteractions)]; // Unique lowercase questions, cleaned of punctuation and whitespace
 
     const currentQuestionLower = currentQuestion.trim().toLowerCase().replace(/[.!?]+$/g, '').trim(); // Normalize current question
-    console.log('Current Question:', currentQuestionLower); 
+    //console.log('Current Question:', currentQuestionLower); 
 
     // Find the FAQ ID for the current question (if any) using Fuse
     const fuseResults = fuse.search(currentQuestionLower);
@@ -118,11 +119,11 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
 
           Provide up to 3 suggested questions, separated by newlines, formatted as plain text questions (e.g., "What services do you offer?").
         `;
-        console.log('Gemini Prompt:', geminiPrompt); 
+        //console.log('Gemini Prompt:', geminiPrompt); 
 
         try {
           const geminiResponse = await useGemini('', geminiPrompt); // Use empty prompt for suggestions
-          console.log('Gemini Response for Suggestions:', geminiResponse); 
+          //console.log('Gemini Response for Suggestions:', geminiResponse); 
           const geminiSuggestions = geminiResponse
             .split('\n')
             .map(line => line.trim())
@@ -156,7 +157,7 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
 
       try {
         const geminiResponse = await useGemini('', geminiPrompt); // Use empty prompt for suggestions
-        console.log('Gemini Response for Suggestions:', geminiResponse); 
+        //console.log('Gemini Response for Suggestions:', geminiResponse); 
         const geminiSuggestions = geminiResponse
           .split('\n')
           .map(line => line.trim())
@@ -174,9 +175,12 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
       }
     }
 
-    console.log('Final Suggestions:', suggestions);
+    //console.log('Final Suggestions:', suggestions);
     return [...new Set(suggestions)].slice(0, 3); // Unique, up to 3 suggestions
   };
+
+  let irrelevantCount = 0;
+  const isOffTopic = ref(false); // Add this
 
   const streamResponse = async function* (prompt: string, isStarter: boolean = false) {
     if (isStarter) {
@@ -186,33 +190,54 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
         yield chunk;
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+
+      irrelevantCount = 0;
       return;
     }
   
     const userInput = prompt.trim().toLowerCase();
-    console.log('User Input Type:', typeof userInput, 'Value:', userInput);
+    //console.log('User Input Type:', typeof userInput, 'Value:', userInput);
   
     const chatHistory = chatStore.messages.map((msg: GeminiMessage) => 
       `${msg.role === 'user' ? 'User' : 'Chatbot'}: ${msg.content} (at ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
     ).join('\n');
-    console.log('Full Chat History:', chatHistory);
+    //console.log('Full Chat History:', chatHistory);
   
     const isQuestion = /(?:^|\s)(how|what|why|when|where|who)\b/i.test(userInput) || userInput.endsWith('?');
-    console.log('Is Question:', isQuestion, 'User Input:', userInput);
+    //console.log('Is Question:', isQuestion, 'User Input:', userInput);
   
     let responseText = '';
   
     if (isQuestion || userInput.trim()) {
       const results = fuse.search(userInput);
-      console.log('Fuse Search Results:', results.map(r => ({
+      /*console.log('Fuse Search Results:', results.map(r => ({
         id: r.item.id,
         question: r.item.question,
         score: r.score || 1,
-      })));
+      })));*/
       const topMatch = results.length > 0 ? results[0].item : null;
+
+      //console.log('results:', results.map(r => r.score || 1));
+      // Off-topic tracking
+      if (!topMatch || (results.length > 0 && (results[0].score || 1)  > 0.75)) {
+        irrelevantCount++;
+        if (irrelevantCount >= 3) {
+          isOffTopic.value = true; // Set to true when limit reached
+          responseText = "It seems we’re drifting off-topic. Want to start fresh? Click the button on the left to begin a new conversation! 😊";
+          const chunks = chunkResponse(responseText);
+          for (const chunk of chunks) {
+            yield chunk;
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          irrelevantCount = 0; // Reset after suggestion
+          return;
+        }
+      } else {
+        irrelevantCount = 0; // Reset if a relevant question is asked
+        isOffTopic.value = false; // Reset when back on topic
+      }
   
       const hasMatch = topMatch !== null;
-  
       // Detect list request
       const isListRequest = /list|bullet|points/i.test(userInput);
   
@@ -273,7 +298,7 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
       `;
   
       const geminiResponse = await useGemini(userInput, faqContext);
-      console.log('Gemini Response:', geminiResponse);
+      //console.log('Gemini Response:', geminiResponse);
   
       // Post-process to enforce formatSuggestion
       responseText = geminiResponse.trim();
@@ -313,8 +338,15 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
     }
   };
 
+  const resetOffTopic = () => {
+    irrelevantCount = 0;
+    isOffTopic.value = false;
+  };
+
   return {
     streamResponse,
     generateQuickReplies, 
+    isOffTopic,
+    resetOffTopic, // Export the reset function
   };
 };

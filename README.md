@@ -77,11 +77,11 @@ src/
 
 #### **1️⃣ User-Friendly Interface**  
 - 🔲 **Collapsible Chat Box** - like the messenger interface.
-- 🔲 **Option to End Chat & Start a New Conversation** 
+- ✅ **Option to End Chat & Start a New Conversation** 
 - 🔲 **Customizable Chat Theme** – Allow users to toggle between light/dark mode or select a theme.  
 - ✅ **Typing Indicator** – Show a "bot is typing..." animation for a more natural feel.  
 - ✅ **Quick Reply Buttons** – Provide suggested questions that users can tap instead of typing.  
-- ✅ **Starter Categorizationonversation** - Show a "starter conversation for a more natural like "Hello i am Javecilla ChatBot, How can i assist you?" and then show suggestions questions like "Who are you?", "What’s your background? and  "What services do you offer?",
+- ✅ **Starter Categorization Conversation** - Show a "starter conversation for a more natural like "Hello i am Javecilla ChatBot, How can i assist you?" and then show suggestions questions like "Who are you?", "What’s your background? and  "What services do you offer?",
 
 #### **2️⃣ Improved Chat Experience**  
 - ✅ **Chunked AI Responses for Real-Time Feel** - Show AI responses in chunks for a more natural flow.
