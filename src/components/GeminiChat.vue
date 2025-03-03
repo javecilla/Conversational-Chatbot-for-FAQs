@@ -27,71 +27,103 @@ const getStarterQuickReplies = () => [
 ];
 
 onMounted(async () => {
-  chatStore.resetMessages();
-  const botMessageId = chatStore.addMessage('model', '', undefined, true);
-  typingIndicator.value = true;
-  await nextTick(() => scrollToBottom());
+  await chatStore.initChat();
+  
+  if (chatStore.messages.length === 0) {
+    //console.log('Starting new chat with welcome message');
+    const botMessageId = await chatStore.addMessage('model', '', undefined, true);
+    typingIndicator.value = true;
 
-  try {
-    const stream = streamResponse('', true);
-    let fullResponse = '';
-    for await (const chunk of stream) {
-      fullResponse += chunk + ' ';
-      await nextTick(() => {
-        chatStore.updateMessage(botMessageId, fullResponse.trim());
-        scrollToBottom();
-      });
+    try {
+      const streams = streamResponse('', true);
+      let fullResponse = '';
+      for await (const chunk of streams) {
+        fullResponse += chunk + ' ';
+        await nextTick(() => {
+          chatStore.updateMessage(botMessageId, fullResponse.trim());
+          scrollToBottom();
+        });
+      }
+      
+      // After streaming completes, update and sync to Firebase with the full response
+      await chatStore.updateAndSyncMessage(botMessageId, fullResponse.trim(), getStarterQuickReplies());
+      await nextTick(() => scrollToBottom());
+    } catch (error) {
+      console.error('Starter conversation error:', error);
+      chatStore.updateMessage(botMessageId, 'Oops, something went wrong with the starter message!');
+      await nextTick(() => scrollToBottom());
+    } finally {
+      typingIndicator.value = false;
     }
-    chatStore.updateMessage(botMessageId, fullResponse.trim(), getStarterQuickReplies());
+  } else {
+    //console.log('Restored existing chat:', chatStore.messages);
+    // Ensure each model message has its content rendered properly
+    chatStore.messages.forEach(msg => {
+      if (msg.role === 'model' && msg.content) {
+        // Force a re-render of markdown content
+        chatStore.updateMessage(msg.timestamp, msg.content, msg.options);
+      }
+    });
     await nextTick(() => scrollToBottom());
-  } catch (error) {
-    console.error('Starter conversation error:', error);
-    chatStore.updateMessage(botMessageId, 'Oops, something went wrong with the starter message!');
-    await nextTick(() => scrollToBottom());
-  } finally {
-    typingIndicator.value = false;
   }
 });
 
 async function sendMessage() {
   if (!userInput.value.trim() || isLoading.value) return;
 
+  const currentInput = userInput.value;
+  userInput.value = '';
   isLoading.value = true;
-  const userMessageId = chatStore.addMessage('user', userInput.value);
-  await nextTick(() => scrollToBottom());
 
   try {
-    await nextTick();
-    const botMessageId = chatStore.addMessage('model', '');
-    typingIndicator.value = true;
+    if (!chatStore.currentChatId) {
+      await chatStore.initChat();
+    }
+    const userMessageId = await chatStore.addMessage('user', currentInput);
     await nextTick(() => scrollToBottom());
 
-    const stream = streamResponse(userInput.value as string);
-    let fullResponse = '';
-    for await (const chunk of stream) {
-      fullResponse += chunk + ' ';
-      typingIndicator.value = false;
-      await nextTick(() => {
+    try {
+      const botMessageId = await chatStore.addMessage('model', '');
+      typingIndicator.value = true;
+      await nextTick(() => scrollToBottom());
+
+      const stream = streamResponse(currentInput);
+      let fullResponse = '';
+
+      for await (const chunk of stream) {
+        fullResponse += chunk;
+        typingIndicator.value = false;
         chatStore.updateMessage(botMessageId, fullResponse.trim());
         scrollToBottom();
-      });
-    }
+      }
 
-    const chatHistory = chatStore.messages.slice(-5);
-    const quickReplies = await generateQuickReplies(chatHistory, userInput.value);
-    if (quickReplies.length > 0) {
-      chatStore.updateMessage(botMessageId, fullResponse.trim(), quickReplies);
+      // First update the UI
+      chatStore.updateMessage(botMessageId, fullResponse.trim());
+      
+      // get quick replies
+      const chatHistory = chatStore.messages.slice(-5);
+      const quickReplies = await generateQuickReplies(chatHistory, currentInput);
+      
+      // Then update everything to Firebase
+      await chatStore.updateAndSyncMessage(botMessageId, fullResponse.trim(), quickReplies);
+      
+      // Reset states after everything is done
+      isLoading.value = false;
+      typingIndicator.value = false;
+
+    } catch (error) {
+      console.error('Streaming error:', error);
+      typingIndicator.value = false;
+      isLoading.value = false;
+      const lastBotMessage = [...chatStore.messages].reverse().find(m => m.role === 'model');
+      const botMessageId = lastBotMessage?.timestamp || 0;
+      chatStore.updateMessage(botMessageId, 'Oops, something went wrong!');
+      scrollToBottom();
     }
-    userInput.value = '';
   } catch (error) {
-    console.error('Streaming error:', error);
-    typingIndicator.value = false;
-    const lastBotMessage = [...chatStore.messages].reverse().find((m: GeminiMessage) => m.role === 'model');
-    const botMessageId = lastBotMessage?.timestamp || 0;
-    chatStore.updateMessage(botMessageId, 'Oops, something went wrong!');
-    await nextTick(() => scrollToBottom());
-  } finally {
+    console.error('Error in sendMessage:', error);
     isLoading.value = false;
+    userInput.value = currentInput; // Restore input on error
   }
 }
 
@@ -102,20 +134,17 @@ const selectOption = async (option: string) => {
 };
 
 const startNewConversation = async () => {
-  // Only show confirmation if:
-  // 1. There are existing messages (not a fresh chat)
-  // 2. Not in off-topic state (user hasn't been asked to restart)
   if (chatStore.messages.length > 1 && !isOffTopic.value) {
     if (!confirm('Are you sure you want to end this chat and start a new one?')) {
       return;
     }
   }
 
-  // Rest of the function remains the same
-  chatStore.resetMessages();
+  await chatStore.endSession(); 
   userInput.value = '';
   resetOffTopic();
-  const botMessageId = chatStore.addMessage('model', '', undefined, true);
+  
+  const botMessageId = await chatStore.addMessage('model', '', undefined, true);
   typingIndicator.value = true;
   await nextTick(() => scrollToBottom());
 
@@ -129,7 +158,13 @@ const startNewConversation = async () => {
         scrollToBottom();
       });
     }
-    chatStore.updateMessage(botMessageId, fullResponse.trim(), getStarterQuickReplies());
+
+    await chatStore.updateAndSyncMessage(
+      botMessageId, 
+      fullResponse.trim(), 
+      getStarterQuickReplies()
+    );
+    
     await nextTick(() => scrollToBottom());
   } catch (error) {
     console.error('Starter conversation error:', error);

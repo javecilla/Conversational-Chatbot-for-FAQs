@@ -1,8 +1,7 @@
-// /src/utils/chatBot.ts
 import Fuse from 'fuse.js';
 import { faqs } from '@/data/faqs';
 import type { GeminiMessage } from '@/types/ai';
-import type { FAQ } from '@/types/faqs'; // Corrected import
+import type { FAQ } from '@/types/faqs'; 
 import { useAI } from '@/composables/useAI';
 import { ref } from 'vue';
 
@@ -180,17 +179,12 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
   };
 
   let irrelevantCount = 0;
-  const isOffTopic = ref(false); // Add this
+  const isOffTopic = ref(false); 
 
   const streamResponse = async function* (prompt: string, isStarter: boolean = false) {
     if (isStarter) {
       const starterText = 'Hello 👋, I am Javecilla Chat bot. How can I assist you? 😊';
-      const chunks = chunkResponse(starterText);
-      for (const chunk of chunks) {
-        yield chunk;
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
+      yield starterText;
       irrelevantCount = 0;
       return;
     }
@@ -208,133 +202,169 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
   
     let responseText = '';
   
-    if (isQuestion || userInput.trim()) {
-      const results = fuse.search(userInput);
-      /*console.log('Fuse Search Results:', results.map(r => ({
-        id: r.item.id,
-        question: r.item.question,
-        score: r.score || 1,
-      })));*/
-      const topMatch = results.length > 0 ? results[0].item : null;
+    // Check if input is about Jerome or relevant to the conversation
+    const relevanceCheckPrompt = `
+      As Jerome's AI assistant, analyze if this message is relevant to Jerome or the ongoing conversation.
+      Consider it relevant if it:
+      1. Is about Jerome, his work, skills, or services
+      2. Is a follow-up to previous messages
+      3. Contains compliments or feedback about Jerome or the chat
+      4. Mentions hiring, projects, or collaboration
+      5. Asks about previous conversation content
 
-      //console.log('results:', results.map(r => r.score || 1));
-      // Off-topic tracking
-      if (!topMatch || (results.length > 0 && (results[0].score || 1)  > 0.75)) {
+      Current message: "${userInput}"
+      Chat history: "${chatHistory}"
+
+      Respond with only "relevant" or "irrelevant". Context: This is Jerome Avecilla's chatbot.
+    `;
+
+    try {
+      const relevanceCheck = await useGemini('', relevanceCheckPrompt);
+      const isRelevant = relevanceCheck.toLowerCase().includes('relevant');
+
+      if (!isRelevant) {
         irrelevantCount++;
         if (irrelevantCount >= 3) {
-          isOffTopic.value = true; // Set to true when limit reached
-          responseText = "It seems we’re drifting off-topic. Want to start fresh? Click the button on the left to begin a new conversation! 😊";
-          const chunks = chunkResponse(responseText);
-          for (const chunk of chunks) {
-            yield chunk;
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          irrelevantCount = 0; // Reset after suggestion
+          isOffTopic.value = true;
+          const offTopicResponse = "I'm focused on helping you learn about Jerome, his services, and our conversation. For other topics, let's start fresh! Click the button on the left to begin a new conversation about Jerome. 😊";
+          yield offTopicResponse;
           return;
         }
       } else {
-        irrelevantCount = 0; // Reset if a relevant question is asked
-        isOffTopic.value = false; // Reset when back on topic
+        irrelevantCount = 0;
+        isOffTopic.value = false;
       }
+
+      if (isQuestion || userInput.trim()) {
+        const results = fuse.search(userInput);
+        /*console.log('Fuse Search Results:', results.map(r => ({
+          id: r.item.id,
+          question: r.item.question,
+          score: r.score || 1,
+        })));*/
+        const topMatch = results.length > 0 ? results[0].item : null;
   
-      const hasMatch = topMatch !== null;
-      // Detect list request
-      const isListRequest = /list|bullet|points/i.test(userInput);
-  
-      // Add enhanced formatting instruction with formatSuggestion
-      let formattingInstruction = `
-        Format the response based on the FAQ's formatSuggestion field and the user’s input. 
-        - If the FAQ's formatSuggestion includes 'bullet' or the input contains 'list', 'bullet', or 'points', use '- ' followed by a space on a new line for each item, preserving '\\n-' from the FAQ.
-        - If the FAQ's formatSuggestion includes 'numbered', use '1. ' followed by a space on a new line for each item, preserving '\\n1.' from the FAQ.
-        - If the FAQ's formatSuggestion includes 'paragraph' and no list is requested, format as plain text without altering the structure.
-        - **Mandatorily preserve the exact Markdown formatting (e.g., '\\n-', '\\n1., **bold**, *italics*) from the FAQ answer when a match is found**, including all items without omission or rephrasing unless clarity requires minor adjustment.
-        - Use separate paragraphs for introductory or trailing text (e.g., 'I've worked on...' or 'Check my portfolio!').
-        - Always use **Markdown formatting** (e.g., **bold**, *italics*, '-' for lists, '| header | data |' for tables) and emojis (e.g., 😊, 🚀) to enhance engagement.
-      `;
-      // Apply formatSuggestion outside isListRequest to ensure all matches are considered
-      if (topMatch && topMatch.formatSuggestion) {
-        if (topMatch.formatSuggestion.includes('bullet')) {
-          formattingInstruction += `
-            Prioritize a bullet-point list format based on formatSuggestion, ensuring all items are included.
-          `;
-        } else if (topMatch.formatSuggestion.includes('numbered')) {
-          formattingInstruction += `
-            Prioritize a numbered list format based on formatSuggestion, ensuring all items are included.
-          `;
-        }
-      }
-      if (isListRequest) {
-        formattingInstruction += `
-          Prioritize a bullet-point list format when 'list' is mentioned, ensuring all items are included.
-        `;
-      }
-  
-      const faqContext = `
-        Prompt for AI Chatbot Isolation (Conversational Mode with History)
-  
-        ROLE:
-        You are Jerome Avecilla’s professional AI chatbot, designed to assist users with a formal, professional tone while staying strictly within the provided FAQ dataset when applicable. Avoid informal greetings like "Hey!", "Hi!", "Hello!", "Yo!", or "there!" at the start of responses. Reflect Jerome’s personality as a web developer and student professionally, responding as if you are Jerome (using "me," "I," or "my" instead of referring to Jerome in the third person). Ensure responses are clear, accurate, engaging, and free of typos, abbreviations, or random characters. Enhance readability and engagement by incorporating **Markdown formatting** (e.g., **bold**, *italics*, lists with '-', tables with \`| header | data |\`) and emojis (e.g., 😊, 🚀) where appropriate.
-  
-        ${formattingInstruction}
-  
-        TASK:
-        - If the user’s input is a question (e.g., contains 'how,' 'what,' 'why,' 'when,' 'where,' or 'who,' or ends with '?') and a FAQ match is found, answer using *only* the information in the FAQ dataset, strictly adhering to the formatSuggestion field (e.g., 'bullet' as \\n-, 'numbered' as \\n1., 'paragraph' as plain text) and preserving its Markdown formatting (e.g., **bold**, *italics*) with emojis as needed.
-        - If the user’s input is a question but doesn’t match any FAQ (or asks about previous chats), use the chat history to generate a response. Summarize or quote relevant user messages with timestamps.
-        - If the user’s input is not a question and doesn’t match any FAQ, generate a natural acknowledgment with Markdown and emojis.
-        - Adapt the response to the user’s tone and context, leveraging the chat history and FAQ categories.
-        - Use the FAQ answer that best matches the question, rephrasing it with Markdown and emojis only if necessary to maintain clarity, but always respect the formatSuggestion and original structure.
-        - If a top FAQ match is found, prioritize its answer.
-        - If unrelated to Jerome or his topics, respond with: "I’m Jerome’s chatbot, and I can only chat about me, my services, projects, interests, or our previous conversation. How may I assist you further regarding me? 😊"
-        - Return *only the answer text with Markdown and emojis*, no "ID: X A:" prefixes.
-  
-        FAQ Dataset:
-        ${faqs.map(faq => `ID: ${String(faq.id)}\nQ: ${faq.question}\nA: ${faq.answer}\nKeywords: ${faq.keywords?.join(', ') || ''}\nCategory: ${faq.category || 'Uncategorized'}\nFormatSuggestion: ${faq.formatSuggestion?.join(', ') || 'paragraph, sentence'}`).join('\n\n')}
-  
-        Chat History (all messages):
-        ${chatHistory}
-  
-        Top FAQ Match (if any):
-        ${topMatch ? `ID: ${String(topMatch.id)}\nQ: ${topMatch.question}\nA: ${topMatch.answer}\nCategory: ${topMatch.category || 'Uncategorized'}\nFormatSuggestion: ${topMatch.formatSuggestion?.join(', ') || 'paragraph, sentence'}` : 'None'}
-      `;
-  
-      const geminiResponse = await useGemini(userInput, faqContext);
-      //console.log('Gemini Response:', geminiResponse);
-  
-      // Post-process to enforce formatSuggestion
-      responseText = geminiResponse.trim();
-      if (topMatch && topMatch.formatSuggestion) {
-        if (topMatch.formatSuggestion.includes('bullet') && (topMatch.answer.includes('\n- ') || isListRequest)) {
-          responseText = geminiResponse.replace(/\n-/g, '\n- ').replace(/- /g, '\n- ').trim(); // Ensure bullet list
-        } else if (topMatch.formatSuggestion.includes('numbered') && topMatch.answer.includes('\n1.')) {
-          responseText = geminiResponse.replace(/\n\d+\./g, match => match.trim() + ' ').replace(/\d+\. /g, '\n$&').trim(); // Ensure numbered list
-        } else if (topMatch.formatSuggestion.includes('paragraph') && !topMatch.formatSuggestion.includes('bullet') && !topMatch.formatSuggestion.includes('numbered')) {
-          responseText = geminiResponse.replace(/(\n-|\n\d+\.)/g, '').trim(); // Force plain text
-        }
-      } else if (isListRequest && geminiResponse.includes('-')) {
-        // Fallback for list request with inline hyphens
-        const lines = geminiResponse.split('\n').map(line => line.trim());
-        let listItems = lines.filter(line => line.startsWith('- ') || line.startsWith('* '));
-        if (listItems.length === 0) {
-          const items = geminiResponse.split('-').map(item => item.trim()).filter(item => item && !item.includes('portfolio'));
-          if (items.length > 1) {
-            const intro = geminiResponse.split('-')[0].trim();
-            const outro = geminiResponse.split('portfolio')[1]?.trim() || '';
-            listItems = items.slice(1).map(item => `- ${item}`);
-            responseText = [intro, listItems.join('\n'), outro ? `You can find more details in my portfolio! ${outro}` : ''].filter(text => text.trim()).join('\n\n');
+        //console.log('results:', results.map(r => r.score || 1));
+        // Off-topic tracking
+        if (!topMatch || (results.length > 0 && (results[0].score || 1)  > 0.75)) {
+          irrelevantCount++;
+          if (irrelevantCount >= 3) {
+            isOffTopic.value = true; // Set to true when limit reached
+            responseText = "It seems we’re drifting off-topic. Want to start fresh? Click the button on the left to begin a new conversation! 😊";
+            const chunks = chunkResponse(responseText);
+            for (const chunk of chunks) {
+              yield chunk;
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            irrelevantCount = 0; // Reset after suggestion
+            return;
           }
         } else {
-          responseText = geminiResponse.trim();
+          irrelevantCount = 0; // Reset if a relevant question is asked
+          isOffTopic.value = false; // Reset when back on topic
         }
+    
+        const hasMatch = topMatch !== null;
+        // Detect list request
+        const isListRequest = /list|bullet|points/i.test(userInput);
+    
+        let formattingInstruction = `
+          Format the response based on the FAQ's formatSuggestion field and the user’s input. 
+          - If the FAQ's formatSuggestion includes 'bullet' or the input contains 'list', 'bullet', or 'points', use '- ' followed by a space on a new line for each item, preserving '\\n-' from the FAQ.
+          - If the FAQ's formatSuggestion includes 'numbered', use '1. ' followed by a space on a new line for each item, preserving '\\n1.' from the FAQ.
+          - If the FAQ's formatSuggestion includes 'paragraph' and no list is requested, format as plain text without altering the structure.
+          - **Mandatorily preserve the exact Markdown formatting (e.g., '\\n-', '\\n1., **bold**, *italics*) from the FAQ answer when a match is found**, including all items without omission or rephrasing unless clarity requires minor adjustment.
+          - Use separate paragraphs for introductory or trailing text (e.g., 'I've worked on...' or 'Check my portfolio!').
+          - Always use **Markdown formatting** (e.g., **bold**, *italics*, '-' for lists, '| header | data |' for tables) and emojis (e.g., 😊, 🚀) to enhance engagement.
+        `;
+        // Apply formatSuggestion outside isListRequest to ensure all matches are considered
+        if (topMatch && topMatch.formatSuggestion) {
+          if (topMatch.formatSuggestion.includes('bullet')) {
+            formattingInstruction += `
+              Prioritize a bullet-point list format based on formatSuggestion, ensuring all items are included.
+            `;
+          } else if (topMatch.formatSuggestion.includes('numbered')) {
+            formattingInstruction += `
+              Prioritize a numbered list format based on formatSuggestion, ensuring all items are included.
+            `;
+          }
+        }
+        if (isListRequest) {
+          formattingInstruction += `
+            Prioritize a bullet-point list format when 'list' is mentioned, ensuring all items are included.
+          `;
+        }
+    
+        const faqContext = `
+          Prompt for AI Chatbot Isolation (Conversational Mode with History)
+    
+          ROLE:
+          You are Jerome Avecilla’s professional AI chatbot, designed to assist users with a formal, professional tone while staying strictly within the provided FAQ dataset when applicable. Avoid informal greetings like "Hey!", "Hi!", "Hello!", "Yo!", or "there!" at the start of responses. Reflect Jerome’s personality as a web developer and student professionally, responding as if you are Jerome (using "me," "I," or "my" instead of referring to Jerome in the third person). Ensure responses are clear, accurate, engaging, and free of typos, abbreviations, or random characters. Enhance readability and engagement by incorporating **Markdown formatting** (e.g., **bold**, *italics*, lists with '-', tables with \`| header | data |\`) and emojis (e.g., 😊, 🚀) where appropriate.
+    
+          ${formattingInstruction}
+    
+          TASK:
+          - If the user’s input is a question (e.g., contains 'how,' 'what,' 'why,' 'when,' 'where,' or 'who,' or ends with '?') and a FAQ match is found, answer using *only* the information in the FAQ dataset, strictly adhering to the formatSuggestion field (e.g., 'bullet' as \\n-, 'numbered' as \\n1., 'paragraph' as plain text) and preserving its Markdown formatting (e.g., **bold**, *italics*) with emojis as needed.
+          - If the user’s input is a question but doesn’t match any FAQ (or asks about previous chats), use the chat history to generate a response. Summarize or quote relevant user messages with timestamps.
+          - If the user’s input is not a question and doesn’t match any FAQ, generate a natural acknowledgment with Markdown and emojis.
+          - Adapt the response to the user’s tone and context, leveraging the chat history and FAQ categories.
+          - Use the FAQ answer that best matches the question, rephrasing it with Markdown and emojis only if necessary to maintain clarity, but always respect the formatSuggestion and original structure.
+          - If a top FAQ match is found, prioritize its answer.
+          - If unrelated to Jerome or his topics, respond with: "I’m Jerome’s chatbot, and I can only chat about me, my services, projects, interests, or our previous conversation. How may I assist you further regarding me? 😊"
+          - Return *only the answer text with Markdown and emojis*, no "ID: X A:" prefixes.
+    
+          FAQ Dataset:
+          ${faqs.map(faq => `ID: ${String(faq.id)}\nQ: ${faq.question}\nA: ${faq.answer}\nKeywords: ${faq.keywords?.join(', ') || ''}\nCategory: ${faq.category || 'Uncategorized'}\nFormatSuggestion: ${faq.formatSuggestion?.join(', ') || 'paragraph, sentence'}`).join('\n\n')}
+    
+          Chat History (all messages):
+          ${chatHistory}
+    
+          Top FAQ Match (if any):
+          ${topMatch ? `ID: ${String(topMatch.id)}\nQ: ${topMatch.question}\nA: ${topMatch.answer}\nCategory: ${topMatch.category || 'Uncategorized'}\nFormatSuggestion: ${topMatch.formatSuggestion?.join(', ') || 'paragraph, sentence'}` : 'None'}
+        `;
+    
+        const geminiResponse = await useGemini(userInput, faqContext);
+        //console.log('Gemini Response:', geminiResponse);
+    
+        // Post-process to enforce formatSuggestion
+        responseText = geminiResponse.trim();
+        if (topMatch && topMatch.formatSuggestion) {
+          if (topMatch.formatSuggestion.includes('bullet') && (topMatch.answer.includes('\n- ') || isListRequest)) {
+            responseText = geminiResponse.replace(/\n-/g, '\n- ').replace(/- /g, '\n- ').trim(); // Ensure bullet list
+          } else if (topMatch.formatSuggestion.includes('numbered') && topMatch.answer.includes('\n1.')) {
+            responseText = geminiResponse.replace(/\n\d+\./g, match => match.trim() + ' ').replace(/\d+\. /g, '\n$&').trim(); // Ensure numbered list
+          } else if (topMatch.formatSuggestion.includes('paragraph') && !topMatch.formatSuggestion.includes('bullet') && !topMatch.formatSuggestion.includes('numbered')) {
+            responseText = geminiResponse.replace(/(\n-|\n\d+\.)/g, '').trim(); // Force plain text
+          }
+        } else if (isListRequest && geminiResponse.includes('-')) {
+          // Fallback for list request with inline hyphens
+          const lines = geminiResponse.split('\n').map(line => line.trim());
+          let listItems = lines.filter(line => line.startsWith('- ') || line.startsWith('* '));
+          if (listItems.length === 0) {
+            const items = geminiResponse.split('-').map(item => item.trim()).filter(item => item && !item.includes('portfolio'));
+            if (items.length > 1) {
+              const intro = geminiResponse.split('-')[0].trim();
+              const outro = geminiResponse.split('portfolio')[1]?.trim() || '';
+              listItems = items.slice(1).map(item => `- ${item}`);
+              responseText = [intro, listItems.join('\n'), outro ? `You can find more details in my portfolio! ${outro}` : ''].filter(text => text.trim()).join('\n\n');
+            }
+          } else {
+            responseText = geminiResponse.trim();
+          }
+        }
+      } else if (!userInput.trim()) {
+        responseText = 'How may I assist you today? 😊';
       }
-    } else if (!userInput.trim()) {
-      responseText = 'How may I assist you today? 😊';
-    }
-  
-    const chunks = chunkResponse(responseText);
-  
-    for (const chunk of chunks) {
-      yield chunk;
-      await new Promise(resolve => setTimeout(resolve, 100));
+    
+      const chunks = chunkResponse(responseText);
+    
+      for (const chunk of chunks) {
+        yield chunk;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error('Error in streamResponse:', error);
+      yield "I apologize, but I'm having trouble processing that. Let's continue our conversation about Me (Jerome)! 😊";
     }
   };
 
@@ -347,6 +377,6 @@ export const useChatBot = (chatStore: ReturnType<typeof import('@/stores/chat')[
     streamResponse,
     generateQuickReplies, 
     isOffTopic,
-    resetOffTopic, // Export the reset function
+    resetOffTopic, 
   };
 };

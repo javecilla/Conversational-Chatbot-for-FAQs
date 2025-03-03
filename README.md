@@ -91,8 +91,8 @@ src/
 
 #### **3️⃣ Persistent & Session-Based Features**  
 - ✅ **Store Chat (state-pinia) History for Current Session** 
-- 🔲 **Load Previous Chats on Page Reload** – Restore chat history when the user revisits.  
-- 🔲 **Local Storage or Database Option** – Store chat history beyond the current session for returning users.  
+- ✅ **Load Previous Chats on Page Reload** – Restore chat history when the user revisits.  
+- ✅ **Database Option (Google Firebase)** – Store chat history beyond the current session for returning users.  
 
 #### **4️⃣ Smart Features & Enhancements**  
 - ✅ **Smart Search for FAQs** – Let users type keywords, and the chatbot suggests related FAQs.  

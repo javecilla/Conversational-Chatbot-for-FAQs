@@ -3,8 +3,12 @@ export interface GeminiMessage {
   role: 'user' | 'model';
   content: string;
   timestamp: number;
+  isStarter?: boolean;
+}
+
+// For Pinia state only - extends GeminiMessage with UI-specific options
+export interface GeminiMessageWithOptions extends GeminiMessage {
   options?: string[];
-  isStarter?: boolean; 
 }
 
 export interface GeminiContent {
