@@ -2,13 +2,15 @@
 import { ref, nextTick, onMounted } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useChatBot } from '@/utils/chatBot';
-import type { GeminiMessage } from '@/types/ai';
 import MarkdownIt from 'markdown-it';
-import { PlusIcon, EllipsisIcon, ArrowUpIcon } from "lucide-vue-next";
+import { PlusIcon } from "lucide-vue-next";
+import ConfirmationModal from './ConfirmationModal.vue';
 
 const userInput = ref('');
 const isLoading = ref(false);
 const typingIndicator = ref(false);
+const isInitializing = ref(true);
+const showConfirmModal = ref(false);
 
 const chatStore = useChatStore();
 const { streamResponse, generateQuickReplies, isOffTopic, resetOffTopic } = useChatBot(chatStore);
@@ -27,6 +29,7 @@ const getStarterQuickReplies = () => [
 ];
 
 onMounted(async () => {
+  isInitializing.value = true;
   await chatStore.initChat();
   
   if (chatStore.messages.length === 0) {
@@ -66,6 +69,7 @@ onMounted(async () => {
     });
     await nextTick(() => scrollToBottom());
   }
+  isInitializing.value = false;
 });
 
 async function sendMessage() {
@@ -174,106 +178,138 @@ const startNewConversation = async () => {
     typingIndicator.value = false;
   }
 };
+
+const handleNewConversation = async () => {
+  if (chatStore.messages.length > 0) {
+    showConfirmModal.value = true;
+  } else {
+    await startNewConversation();
+  }
+};
+
+const confirmNewConversation = async () => {
+  showConfirmModal.value = false;
+  await startNewConversation();
+};
 </script>
 
 <template>
-  <div class="p-4 max-w-6xl mx-auto h-100">
-    <div class="relative space-y-3 mb-4 max-h-[600px] w-[700px] overflow-y-auto">
-      <div v-for="msg in chatStore.messages" :key="msg.timestamp" class="flex items-start gap-3">
-        <div v-if="msg.role !== 'user'" class="flex-shrink-0">
-          <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-5 h-5 text-purple-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M12 2a8 8 0 0 1 8 8v1h2v3h-2v1a8 8 0 0 1-16 0v-1H2v-3h2v-1a8 8 0 0 1 8-8z" />
-              <path d="M9 12h.01" />
-              <path d="M15 12h.01" />
-            </svg>
-          </div>
-        </div>
-        <div class="flex-1">
-          <div
-            v-if="msg.role !== 'user'"
-            class="text-sm text-start font-medium text-gray-600 mb-1 flex items-center"
-          >
-            BOT (Javecilla) -
-            <span class="text-gray-600 text-sm ml-2">
-              {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-            </span>
-          </div>
-          <div v-if="msg.role === 'user'" class="text-gray-600 text-sm text-right mb-1">
-            {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-          </div>
-          <div
-            :class="[
-              'py-2 px-5 rounded-2xl max-w-[85%] text-start break-words',
-              msg.role === 'user'
-                ? 'ml-auto bg-purple-500 text-white'
-                : msg.isStarter
-                  ? 'bg-[#b4a7d6]'
-                  : 'bg-gray-100',
-            ]"
-          >
-            <div
-              v-if="msg.role === 'model' && !msg.content && typingIndicator"
-              class="text-gray-800 py-2 px-1"
-            >
-              Bot is typing
-              <span class="typing-dots">...</span>
-            </div>
-            <div
-              :class="msg.role === 'user' ? 'text-white' : 'text-gray-800'"
-              v-html="md.render(msg.content || '')"
-            ></div>
-          </div>
-          <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
-            <button
-              v-for="option in msg.options"
-              :key="option"
-              class="px-4 py-2 bg-transparent rounded-xl border border-purple-200 text-white hover:scale-[1.01] hover:border-purple-600 transition-colors text-sm"
-              @click="selectOption(option)"
-            >
-              {{ option }}
-            </button>
-          </div>
-        </div>
+  <div class="flex flex-col h-full relative">
+    <!-- Confirmation Modal -->
+    <ConfirmationModal
+      :is-open="showConfirmModal"
+      message="Starting a new conversation will clear your current chat history. Are you sure you want to continue?"
+      :on-confirm="confirmNewConversation"
+      :on-cancel="() => showConfirmModal = false"
+    />
+
+    <!-- Loading State -->
+    <div v-if="isInitializing" class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent"></div>
+        <p class="mt-2 text-gray-600">Initializing chat...</p>
       </div>
     </div>
-    <form @submit.prevent="sendMessage" class="relative w-full flex flex-col bg-gray-800 rounded-xl p-2">
-      <div class="flex flex-col flex-grow min-h-[20px]">
-        <textarea
-          v-model="userInput"
-          class="w-full p-2 border-none bg-transparent text-white resize-none focus:ring-0 focus:outline-none flex-grow min-h-[50px]"
-          placeholder="Ask anything..."
-          rows="2"
-          :disabled="isLoading || isOffTopic"
-        />
+
+    <!-- Chat Content -->
+    <template v-else>
+      <div class="relative flex-1 space-y-3 overflow-y-auto px-4 py-2">
+        <div v-for="msg in chatStore.messages" :key="msg.timestamp" class="flex items-start gap-3">
+          <div v-if="msg.role !== 'user'" class="flex-shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5 text-purple-500"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 2a8 8 0 0 1 8 8v1h2v3h-2v1a8 8 0 0 1-16 0v-1H2v-3h2v-1a8 8 0 0 1 8-8z" />
+                <path d="M9 12h.01" />
+                <path d="M15 12h.01" />
+              </svg>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div
+              v-if="msg.role !== 'user'"
+              class="text-sm text-start font-medium text-gray-600 mb-1 flex items-center"
+            >
+              BOT (Javecilla) -
+              <span class="text-gray-600 text-sm ml-2">
+                {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              </span>
+            </div>
+            <div v-if="msg.role === 'user'" class="text-gray-600 text-sm text-right mb-1">
+              {{ new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+            </div>
+            <div
+              :class="[
+                'py-2 px-5 rounded-2xl max-w-[95%] text-start break-words',
+                msg.role === 'user'
+                  ? 'ml-auto bg-purple-500 text-white'
+                  : msg.isStarter
+                    ? 'bg-[#b4a7d6]'
+                    : 'bg-gray-100',
+              ]"
+            >
+              <div
+                v-if="msg.role === 'model' && !msg.content && typingIndicator"
+                class="text-gray-800 py-2 px-1"
+              >
+                Bot is typing
+                <span class="typing-dots">...</span>
+              </div>
+              <div
+                :class="msg.role === 'user' ? 'text-white' : 'text-gray-800'"
+                v-html="md.render(msg.content || '')"
+              ></div>
+            </div>
+            <div v-if="msg.role === 'model' && msg.options" class="flex flex-wrap gap-2 mt-3">
+              <button
+                v-for="option in msg.options"
+                :key="option"
+                class="text-black text-left text-sm whitespace-normal max-w-[350px] px-4 py-2 bg-transparent rounded-xl border border-purple-200 hover:scale-[1.01] hover:border-purple-600 transition-colors"
+                @click="selectOption(option)"
+              >
+                {{ option }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="flex items-center justify-between gap-4 pt-2 pb-1 px-2 mt-1">
-        <button
-          @click="startNewConversation"
-          type="button"
-          class="flex items-center justify-center px-4 py-2 bg-gray-700 rounded-xl hover:bg-gray-600 transition-colors text-white"
-          :class="{ 'animate-pulse': isOffTopic }"
-          title="Start a new conversation"
-        >
-          <PlusIcon class="w-5 h-5 text-white forced-icon mr-1" stroke-width="1.5" />
-          New 
-        </button>
-        <button
-          type="submit"
-          :disabled="isLoading || !userInput.trim() || isOffTopic"
-          class="flex items-center justify-center px-6 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-50 transition-colors"
-        >
-          {{ isLoading ? 'Sending...' : 'Send' }}
-        </button>
-      </div>
-    </form>
+      <form @submit.prevent="sendMessage" class="p-2 bg-gray-800">
+        <div class="flex flex-col flex-grow min-h-[15px]">
+          <textarea
+            v-model="userInput"
+            class="w-full p-2 border-none bg-transparent text-white resize-none focus:ring-0 focus:outline-none flex-grow min-h-[50px]"
+            placeholder="Ask anything..."
+            rows="2"
+            :disabled="isLoading || isOffTopic"
+          />
+        </div>
+        <div class="flex items-center justify-between gap-4 pt-2 pb-1 px-2 -mt-3">
+          <button
+            @click="handleNewConversation"
+            type="button"
+            class="flex items-center justify-center px-4 py-2 bg-gray-700 rounded-xl hover:bg-gray-600 transition-colors text-white"
+            :class="{ 'animate-pulse': isOffTopic }"
+            title="Start a new conversation"
+          >
+            <PlusIcon class="w-5 h-5 text-white forced-icon mr-1" stroke-width="1.5" />
+            New 
+          </button>
+          <button
+            type="submit"
+            :disabled="isLoading || !userInput.trim() || isOffTopic"
+            class="flex items-center justify-center px-6 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 disabled:opacity-50 transition-colors"
+          >
+            {{ isLoading ? 'Sending...' : 'Send' }}
+          </button>
+        </div>
+      </form>
+    </template>
   </div>
 </template>
 
@@ -340,5 +376,15 @@ textarea {
 /* Make sure buttons don't shrink */
 button {
   flex-shrink: 0;
+}
+
+.overflow-y-auto {
+  height: calc(100% - 60px); /* Adjust for input area */
+}
+
+form {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
 }
 </style>

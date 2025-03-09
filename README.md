@@ -76,7 +76,7 @@ src/
 ## Next Steps
 
 #### **1️⃣ User-Friendly Interface**  
-- 🔲 **Collapsible Chat Box** - like the messenger interface.
+- ✅ **Collapsible Chat Box** - like the messenger interface.
 - ✅ **Option to End Chat & Start a New Conversation** 
 - 🔲 **Customizable Chat Theme** – Allow users to toggle between light/dark mode or select a theme.  
 - ✅ **Typing Indicator** – Show a "bot is typing..." animation for a more natural feel.  
